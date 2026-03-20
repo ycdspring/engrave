@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>성경 암송 트레이너</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&family=Noto+Serif+KR:wght@400;700&display=swap');
+
+:root {
+  --primary:#5755ff; --primary-dark:#1e1c93;
+  --stroke:#ddddf5; --surface:#f0f0ff;
+  --green:#22c55e; --red:#ef4444;
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body {
+  font-family:'Noto Sans KR',sans-serif;
+  background:linear-gradient(160deg,#74b8d8 0%,#a8d4e8 35%,#d0eaf5 65%,#e8f4fa 100%);
+  min-height:100vh;
+}
+.wrap { max-width:480px; margin:0 auto; padding:20px 14px 80px; }
+
+.app-title { text-align:center; margin-bottom:18px; }
+.app-title h1 { font-size:1.7rem; font-weight:900; color:#1a3a5c; }
+.app-title p  { font-size:0.82rem; color:#3a6080; margin-top:3px; }
+
+.panel {
+  background:rgba(255,255,255,0.97); border-radius:16px; padding:14px;
+  box-shadow:0 2px 12px rgba(87,85,255,0.09); border:1.5px solid var(--stroke);
+  margin-bottom:10px;
+}
+.panel-title { font-size:0.88rem; font-weight:700; color:#1a1a3e; margin-bottom:10px; }
+.sel-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; }
+.sel-wrap { display:flex; flex-direction:column; gap:3px; }
+.sel-label { font-size:0.7rem; font-weight:700; color:#6b6b99; }
+select, input[type=number] {
+  font-family:inherit; border:1.5px solid var(--stroke); border-radius:10px;
+  padding:9px 8px; width:100%; font-weight:700; font-size:0.9rem;
+  background:white; color:#1a1a3e;
+}
+.btn-primary {
+  border:none; border-radius:10px; font-family:inherit; font-weight:700;
+  cursor:pointer; font-size:0.9rem; padding:13px;
+  background:var(--primary); color:white; width:100%; transition:all 0.15s;
+}
+.btn-primary:disabled { opacity:0.35; cursor:not-allowed; }
+.btn-primary:active { transform:scale(0.97); }
+
+/* 단계 */
+.stage-row { display:flex; gap:6px; overflow-x:auto; padding-bottom:4px; }
+.stage-row::-webkit-scrollbar { display:none; }
+.stage-btn {
+  flex:0 0 auto; padding:8px 12px; border-radius:99px; font-size:0.78rem;
+  font-weight:700; cursor:pointer; border:1.5px solid var(--stroke);
+  background:white; color:#6b6b99; transition:all 0.15s; white-space:nowrap;
+}
+.stage-btn.on { background:var(--primary); color:white; border-color:var(--primary); }
+
+/* 본문 카드 — 스크롤 */
+.verse-card {
+  background:white; border-radius:16px; padding:18px 16px;
+  box-shadow:0 4px 20px rgba(0,0,0,0.07); border:1.5px solid var(--stroke);
+  margin-bottom:10px;
+  max-height:280px; overflow-y:auto;
+}
+.verse-card::-webkit-scrollbar { width:4px; }
+.verse-card::-webkit-scrollbar-thumb { background:#ddddf5; border-radius:99px; }
+.verse-section { margin-bottom:14px; padding-bottom:14px; border-bottom:1px dashed #e0e0f5; }
+.verse-section:last-child { margin-bottom:0; padding-bottom:0; border-bottom:none; }
+.verse-num {
+  font-size:0.7rem; font-weight:700; color:var(--primary); margin-bottom:6px;
+  font-family:'Noto Sans KR',sans-serif;
+}
+.verse-body {
+  font-family:'Noto Serif KR',serif; font-size:1.05rem; color:#1a1a3e;
+  line-height:2.2; word-break:keep-all;
+}
+.w { display:inline; }
+.w.hide {
+  display:inline-block; background:#e8e8ff; color:transparent;
+  border-radius:3px; border-bottom:2px solid var(--primary); min-width:1em;
+}
+.w.ok  { color:#15803d !important; background:#d4ffd4 !important; border-color:var(--green) !important; }
+.w.bad { color:#b91c1c !important; background:#ffd4d4 !important; border-color:var(--red) !important; }
+.full-cover {
+  background:linear-gradient(135deg,#e8e8ff,#f0f0ff); border-radius:10px;
+  padding:14px; text-align:center; color:#9b9bf0;
+  font-size:0.85rem; line-height:1.8;
+}
+
+/* 음성 패널 */
+.voice-panel {
+  background:rgba(255,255,255,0.97); border-radius:16px; padding:16px;
+  border:1.5px solid var(--stroke); box-shadow:0 2px 12px rgba(87,85,255,0.09);
+}
+.voice-title { font-size:0.88rem; font-weight:700; color:#1a1a3e; margin-bottom:12px; }
+
+.mic-wrap { display:flex; flex-direction:column; align-items:center; margin:4px 0 12px; }
+.mic-btn {
+  width:80px; height:80px; border-radius:50%; border:none; cursor:pointer;
+  background:linear-gradient(135deg,#5755ff,#1e1c93); color:white; font-size:2rem;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 6px 24px rgba(87,85,255,0.45); transition:all 0.2s; position:relative;
+}
+.mic-btn:active { transform:scale(0.93); }
+.mic-btn.on {
+  background:linear-gradient(135deg,#ef4444,#b91c1c);
+  box-shadow:0 6px 24px rgba(239,68,68,0.5);
+  animation:mpulse 1.2s infinite;
+}
+@keyframes mpulse {
+  0%,100% { box-shadow:0 6px 24px rgba(239,68,68,0.4); }
+  50%      { box-shadow:0 6px 40px rgba(239,68,68,0.8),0 0 0 14px rgba(239,68,68,0.1); }
+}
+.mic-status { margin-top:8px; font-size:0.78rem; font-weight:700; color:#6b6b99; text-align:center; }
+.mic-status.on { color:var(--red); }
+
+.recog-box {
+  background:var(--surface); border-radius:10px; padding:10px 12px;
+  font-size:0.88rem; color:#1a1a3e; min-height:50px; border:1.5px solid var(--stroke);
+  margin-bottom:10px; line-height:1.7; word-break:keep-all; transition:border-color 0.2s;
+}
+.recog-box .interim { color:#9b9bf0; }
+.recog-box.active { border-color:var(--primary); }
+
+.score-wrap { margin-bottom:12px; }
+.score-top { display:flex; justify-content:space-between; margin-bottom:4px; }
+.score-label { font-size:0.75rem; font-weight:700; color:#6b6b99; }
+.score-num { font-size:1rem; font-weight:900; color:var(--primary); }
+.score-track { height:8px; background:#e8e8f5; border-radius:99px; overflow:hidden; }
+.score-fill {
+  height:100%; border-radius:99px;
+  background:linear-gradient(90deg,#5755ff,#22c55e);
+  transition:width 0.6s cubic-bezier(0.34,1.56,0.64,1); width:0%;
+}
+
+/* TTS 컨트롤 */
+.tts-panel {
+  background:var(--surface); border-radius:12px; padding:12px;
+  border:1.5px solid var(--stroke); margin-bottom:10px;
+}
+.tts-panel-title { font-size:0.78rem; font-weight:700; color:#6b6b99; margin-bottom:10px; }
+.tts-controls { display:flex; flex-direction:column; gap:8px; }
+.tts-row { display:flex; align-items:center; gap:8px; }
+.tts-label { font-size:0.73rem; font-weight:700; color:#6b6b99; white-space:nowrap; min-width:44px; }
+input[type=range] { flex:1; accent-color:var(--primary); height:4px; }
+.tts-val { font-size:0.73rem; font-weight:700; color:var(--primary); min-width:32px; text-align:right; }
+
+/* 재생바 */
+.play-progress-wrap { margin:10px 0 6px; }
+.play-progress-track {
+  width:100%; height:6px; background:#e0e0f5; border-radius:99px;
+  overflow:hidden; margin-bottom:4px; cursor:pointer;
+}
+.play-progress-fill {
+  height:100%; background:linear-gradient(90deg,var(--primary),#22c55e);
+  border-radius:99px; transition:width 0.3s linear; width:0%;
+}
+.play-progress-info {
+  display:flex; justify-content:space-between;
+  font-size:0.7rem; color:#6b6b99; font-weight:700;
+}
+
+/* 구간반복 */
+.section-repeat-wrap {
+  background:white; border-radius:10px; padding:10px; border:1.5px solid var(--stroke); margin-bottom:8px;
+}
+.section-repeat-title { font-size:0.73rem; font-weight:700; color:#6b6b99; margin-bottom:8px; }
+.section-checkboxes { display:flex; flex-wrap:wrap; gap:6px; }
+.verse-check-btn {
+  padding:5px 10px; border-radius:99px; font-size:0.75rem; font-weight:700;
+  border:1.5px solid var(--stroke); background:white; color:#6b6b99; cursor:pointer;
+  transition:all 0.15s;
+}
+.verse-check-btn.sel { background:var(--primary); color:white; border-color:var(--primary); }
+
+/* 탭 */
+.tab-row { display:flex; gap:0; margin-bottom:12px; border-radius:10px; overflow:hidden; border:1.5px solid var(--stroke); }
+.tab-btn {
+  flex:1; padding:9px; font-size:0.82rem; font-weight:700; cursor:pointer;
+  border:none; background:white; color:#6b6b99; transition:all 0.15s;
+}
+.tab-btn.on { background:var(--primary); color:white; }
+
+/* 녹음 패널 */
+.rec-verse-list { display:flex; flex-direction:column; gap:6px; margin-bottom:10px; max-height:200px; overflow-y:auto; }
+.rec-verse-item {
+  display:flex; align-items:center; gap:8px; padding:8px 10px;
+  background:white; border-radius:10px; border:1.5px solid var(--stroke);
+}
+.rec-verse-num { font-size:0.75rem; font-weight:700; color:var(--primary); min-width:28px; }
+.rec-verse-text { font-size:0.78rem; color:#1a1a3e; flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.rec-btn-wrap { display:flex; gap:4px; flex-shrink:0; }
+.btn-rec {
+  padding:5px 10px; border-radius:8px; font-size:0.75rem; font-weight:700;
+  border:none; cursor:pointer; transition:all 0.15s;
+}
+.btn-rec.record  { background:#ef4444; color:white; }
+.btn-rec.stop    { background:#6b6b99; color:white; }
+.btn-rec.play-r  { background:var(--primary); color:white; }
+.btn-rec.delete  { background:#f0f0ff; color:#9b9bf0; border:1.5px solid var(--stroke); }
+.btn-rec.recording { animation:rpulse 0.8s infinite; }
+@keyframes rpulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+.rec-all-row { display:flex; gap:6px; margin-top:8px; }
+.btn-rec-all { flex:1; padding:11px; border-radius:10px; font-weight:700; font-size:0.85rem; cursor:pointer; border:none; }
+.btn-rec-all.start { background:#ef4444; color:white; }
+.btn-rec-all.stop  { background:#6b6b99; color:white; }
+.btn-rec-all.play  { background:var(--primary); color:white; }
+.rec-status { font-size:0.75rem; color:#6b6b99; text-align:center; margin-top:6px; min-height:16px; }
+.btn-play {
+  flex:2; padding:12px; background:var(--primary); color:white; border:none;
+  border-radius:10px; font-weight:700; font-size:0.85rem; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; gap:6px;
+}
+.btn-play.playing { background:#ef4444; }
+.btn-repeat {
+  flex:1; padding:12px; border-radius:10px; font-weight:700; font-size:0.82rem;
+  cursor:pointer; border:1.5px solid var(--stroke); background:white; color:#6b6b99;
+  display:flex; align-items:center; justify-content:center; gap:4px;
+}
+.btn-repeat.on { background:#fff0e0; color:#c2680a; border-color:#f0d0a0; }
+
+.tts-progress {
+  font-size:0.72rem; color:#6b6b99; text-align:center; min-height:16px; margin-top:2px;
+}
+
+.action-row { display:flex; gap:6px; margin-bottom:8px; }
+.btn-check  { flex:1; padding:12px; background:var(--green); color:white; border:none; border-radius:10px; font-weight:700; font-size:0.85rem; cursor:pointer; }
+.btn-reveal { flex:1; padding:12px; background:#fff0e0; color:#c2680a; border:1.5px solid #f0d0a0; border-radius:10px; font-weight:700; font-size:0.85rem; cursor:pointer; }
+
+.result-msg {
+  text-align:center; padding:10px; border-radius:10px;
+  font-weight:700; font-size:0.88rem; display:none; margin-top:6px;
+}
+.result-msg.pass { background:#d4ffd4; color:#15803d; display:block; }
+.result-msg.fail { background:#ffd4d4; color:#b91c1c; display:block; }
+.result-msg.info { background:#e8e8ff; color:#1e1c93; display:block; }
+
+.empty-state { text-align:center; padding:48px 20px; color:#6b6b99; font-size:0.9rem; line-height:1.9; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="app-title">
+    <h1>✝ 성경 암송</h1>
+    <p>말씀을 마음에 새겨요 (개역한글)</p>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">📖 말씀 선택</div>
+    <div class="sel-row">
+      <div class="sel-wrap">
+        <div class="sel-label">성경</div>
+        <select id="bookSel" onchange="onBook()"><option value="">권 선택</option></select>
+      </div>
+      <div class="sel-wrap">
+        <div class="sel-label">장</div>
+        <select id="chapSel" onchange="onChap()" disabled><option value="">선택</option></select>
+      </div>
+    </div>
+    <div class="sel-row">
+      <div class="sel-wrap">
+        <div class="sel-label">시작 절</div>
+        <input type="number" id="vFrom" value="1" min="1" disabled>
+      </div>
+      <div class="sel-wrap">
+        <div class="sel-label">끝 절</div>
+        <input type="number" id="vTo" placeholder="끝" min="1" disabled>
+      </div>
+    </div>
+    <button class="btn-primary" id="loadBtn" onclick="loadVerses()" disabled>말씀 불러오기</button>
+  </div>
+
+  <div id="mainArea">
+    <div class="empty-state">위에서 말씀을 선택하고<br>불러오기를 눌러주세요 🙏</div>
+  </div>
+</div>
+
+<script>
+const BOOKS=[
+  {n:'창세기',c:50},{n:'출애굽기',c:40},{n:'레위기',c:27},{n:'민수기',c:36},{n:'신명기',c:34},
+  {n:'여호수아',c:24},{n:'사사기',c:21},{n:'룻기',c:4},{n:'사무엘상',c:31},{n:'사무엘하',c:24},
+  {n:'열왕기상',c:22},{n:'열왕기하',c:25},{n:'역대상',c:29},{n:'역대하',c:36},{n:'에스라',c:10},
+  {n:'느헤미야',c:13},{n:'에스더',c:10},{n:'욥기',c:42},{n:'시편',c:150},{n:'잠언',c:31},
+  {n:'전도서',c:12},{n:'아가',c:8},{n:'이사야',c:66},{n:'예레미야',c:52},{n:'예레미야애가',c:5},
+  {n:'에스겔',c:48},{n:'다니엘',c:12},{n:'호세아',c:14},{n:'요엘',c:3},{n:'아모스',c:9},
+  {n:'오바댜',c:1},{n:'요나',c:4},{n:'미가',c:7},{n:'나훔',c:3},{n:'하박국',c:3},
+  {n:'스바냐',c:3},{n:'학개',c:2},{n:'스가랴',c:14},{n:'말라기',c:4},
+  {n:'마태복음',c:28},{n:'마가복음',c:16},{n:'누가복음',c:24},{n:'요한복음',c:21},
+  {n:'사도행전',c:28},{n:'로마서',c:16},{n:'고린도전서',c:16},{n:'고린도후서',c:13},
+  {n:'갈라디아서',c:6},{n:'에베소서',c:6},{n:'빌립보서',c:4},{n:'골로새서',c:4},
+  {n:'데살로니가전서',c:5},{n:'데살로니가후서',c:3},{n:'디모데전서',c:6},{n:'디모데후서',c:4},
+  {n:'디도서',c:3},{n:'빌레몬서',c:1},{n:'히브리서',c:13},{n:'야고보서',c:5},
+  {n:'베드로전서',c:5},{n:'베드로후서',c:3},{n:'요한일서',c:5},{n:'요한이서',c:1},
+  {n:'요한삼서',c:1},{n:'유다서',c:1},{n:'요한계시록',c:22}
+];
+
+let verses=[], stage=0;
+let finalText='', interimText='';
+let ttsSpeed=0.9, ttsRepeat=false, ttsPlaying=false, ttsRepeatN=3;
+let selectedVerseNums=new Set();
+let listenTab='tts'; // 'tts' | 'rec'
+let recorings={}; // {verseNum: Blob}
+let mediaRecorder=null, recChunks=[], recordingVerseNum=null;
+let recAudioEl=null, playAllIdx=0, playAllActive=false;
+let recognition=null, isListening=false;
+const hasSpeech='webkitSpeechRecognition' in window||'SpeechRecognition' in window;
+
+(function(){
+  const s=document.getElementById('bookSel');
+  BOOKS.forEach((b,i)=>{const o=document.createElement('option');o.value=i+1;o.textContent=b.n;s.appendChild(o);});
+  setupSpeech();
+})();
+
+function onBook(){
+  const v=document.getElementById('bookSel').value;
+  const c=document.getElementById('chapSel');
+  c.innerHTML='<option value="">선택</option>';c.disabled=true;
+  document.getElementById('loadBtn').disabled=true;
+  if(!v)return;
+  for(let i=1;i<=BOOKS[v-1].c;i++){const o=document.createElement('option');o.value=i;o.textContent=i+'장';c.appendChild(o);}
+  c.disabled=false;
+}
+function onChap(){
+  const v=document.getElementById('chapSel').value;
+  ['vFrom','vTo'].forEach(id=>document.getElementById(id).disabled=!v);
+  document.getElementById('loadBtn').disabled=!v;
+}
+
+async function loadVerses(){
+  const b=document.getElementById('bookSel').value;
+  const c=document.getElementById('chapSel').value;
+  const f=parseInt(document.getElementById('vFrom').value)||1;
+  const t=parseInt(document.getElementById('vTo').value);
+  const btn=document.getElementById('loadBtn');
+  btn.textContent='불러오는 중...';btn.disabled=true;
+  try{
+    const res=await fetch(`https://api.getbible.net/v2/korean/${b}/${c}.json`);
+    const data=await res.json();
+    const vObj=data.verses;
+    const keys=Object.keys(vObj).map(Number).sort((a,b)=>a-b);
+    const end=t||Math.max(...keys);
+    verses=keys.filter(n=>n>=f&&n<=end).map(n=>({num:n,text:vObj[n].text.trim()}));
+    selectedVerseNums=new Set(verses.map(v=>v.num)); // 기본 전체 선택
+    stage=0; stopTTS();
+    render();
+  }catch(e){alert('불러오기 실패. 인터넷 연결을 확인해주세요.');}
+  btn.textContent='말씀 불러오기';btn.disabled=false;
+}
+
+// 초성
+function chosung(ch){
+  const code=ch.charCodeAt(0)-0xAC00;
+  if(code<0||code>11171)return ch;
+  return 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ'[Math.floor(code/588)];
+}
+
+// 절 하나 HTML 생성
+function makeVerseHTML(v, s){
+  if(s===0) return `<span class="w">${v.text}</span>`;
+  if(s===4) return `<div class="full-cover">⬛ 완전 가리기<br><small style="color:#b0b0d0">아래 마이크로 말씀을 외워보세요</small></div>`;
+  if(s===3) return Array.from(v.text).map(ch=>ch===' '?' ':`<span class="w" style="color:#9b9bf0">${chosung(ch)}</span>`).join('');
+  const ratio=s===1?0.3:0.6;
+  return Array.from(v.text).map(ch=>{
+    if(ch===' ')return ' ';
+    if(Math.random()<ratio)return `<span class="w hide" data-ch="${ch}">&nbsp;</span>`;
+    return `<span class="w">${ch}</span>`;
+  }).join('');
+}
+
+function render(){
+  stopMic(); stopTTS();
+  finalText=''; interimText='';
+  const area=document.getElementById('mainArea');
+  if(!verses.length){area.innerHTML='<div class="empty-state">말씀을 불러와 주세요 🙏</div>';return;}
+
+  // 1. 단계 패널
+  let html=`
+  <div class="panel">
+    <div class="panel-title">🎯 암송 단계</div>
+    <div class="stage-row">
+      <button class="stage-btn ${stage===0?'on':''}" onclick="setStage(0)">👁 전체보기</button>
+      <button class="stage-btn ${stage===1?'on':''}" onclick="setStage(1)">🌫 일부가리기</button>
+      <button class="stage-btn ${stage===2?'on':''}" onclick="setStage(2)">☁ 절반가리기</button>
+      <button class="stage-btn ${stage===3?'on':''}" onclick="setStage(3)">🔤 초성만</button>
+      <button class="stage-btn ${stage===4?'on':''}" onclick="setStage(4)">⬛ 완전가리기</button>
+    </div>
+  </div>`;
+
+  // 2. 전체 절 한번에 표시
+  html+=`<div class="verse-card">`;
+  verses.forEach(v=>{
+    html+=`<div class="verse-section">
+      <div class="verse-num">${v.num}절</div>
+      <div class="verse-body">${makeVerseHTML(v,stage)}</div>
+    </div>`;
+  });
+  html+=`</div>`;
+
+  // 3. 듣기 패널 (TTS / 내 목소리 탭)
+  const checkBoxes = verses.map(v=>
+    `<button class="verse-check-btn sel" id="vcheck_${v.num}" onclick="toggleVerseCheck(${v.num})">${v.num}절</button>`
+  ).join('');
+
+  const recVerseRows = verses.map(v=>{
+    const hasRec = recorings[v.num] ? true : false;
+    return `<div class="rec-verse-item" id="recItem_${v.num}">
+      <span class="rec-verse-num">${v.num}절</span>
+      <span class="rec-verse-text">${v.text.substring(0,20)}...</span>
+      <div class="rec-btn-wrap">
+        ${hasRec
+          ? `<button class="btn-rec play-r" onclick="playRecording(${v.num})">▶</button>
+             <button class="btn-rec delete" onclick="deleteRecording(${v.num})">✕</button>`
+          : `<button class="btn-rec record" id="recBtn_${v.num}" onclick="toggleRecordVerse(${v.num})">● 녹음</button>`
+        }
+      </div>
+    </div>`;
+  }).join('');
+
+  html+=`
+  <div class="tts-panel">
+    <!-- 탭 -->
+    <div class="tab-row">
+      <button class="tab-btn ${listenTab==='tts'?'on':''}" onclick="switchTab('tts')">🔊 TTS 듣기</button>
+      <button class="tab-btn ${listenTab==='rec'?'on':''}" onclick="switchTab('rec')">🎙 내 목소리</button>
+    </div>
+
+    <!-- TTS 탭 -->
+    <div id="ttsTab" style="display:${listenTab==='tts'?'block':'none'}">
+      <div class="play-progress-wrap">
+        <div class="play-progress-track" onclick="seekTTS(event, this)">
+          <div class="play-progress-fill" id="progressFill"></div>
+        </div>
+        <div class="play-progress-info">
+          <span id="progressLabel">-</span>
+          <span id="progressRepeat"></span>
+        </div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <div style="font-size:0.7rem;font-weight:700;color:#6b6b99;margin-bottom:6px;">🔂 구간 선택</div>
+        <div class="section-checkboxes">${checkBoxes}</div>
+      </div>
+      <div class="tts-row" style="margin-bottom:10px;">
+        <span class="tts-label">속도</span>
+        <input type="range" min="0.5" max="1.5" step="0.1" value="${ttsSpeed}"
+          oninput="ttsSpeed=+this.value;document.getElementById('ttsVal').textContent=this.value+'x'">
+        <span class="tts-val" id="ttsVal">${ttsSpeed}x</span>
+      </div>
+      <div class="tts-btn-row">
+        <button class="btn-play" id="playBtn" onclick="togglePlay()">▶ 듣기</button>
+        <button class="btn-repeat ${ttsRepeat?'on':''}" id="repeatBtn" onclick="toggleRepeat()">
+          🔁 ${ttsRepeat?`${ttsRepeatN}회 반복`:'반복OFF'}
+        </button>
+      </div>
+      <div id="repeatCountWrap" style="display:${ttsRepeat?'flex':'none'};margin-top:8px;" class="tts-row">
+        <span class="tts-label">횟수</span>
+        <input type="range" min="1" max="10" step="1" value="${ttsRepeatN}" id="repeatCount"
+          oninput="ttsRepeatN=+this.value;document.getElementById('repeatVal').textContent=this.value+'회';document.getElementById('repeatBtn').textContent='🔁 '+this.value+'회 반복'">
+        <span class="tts-val" id="repeatVal">${ttsRepeatN}회</span>
+      </div>
+    </div>
+
+    <!-- 내 목소리 탭 -->
+    <div id="recTab" style="display:${listenTab==='rec'?'block':'none'}">
+      <div style="font-size:0.75rem;color:#6b6b99;margin-bottom:8px;line-height:1.6;">
+        절별로 내 목소리를 녹음하고 재생할 수 있어요.<br>
+        녹음 후 <b>전체 재생</b>으로 이어서 들을 수 있어요.
+      </div>
+      <div class="rec-verse-list">${recVerseRows}</div>
+      <div class="rec-all-row">
+        <button class="btn-rec-all play" onclick="playAllRecordings()" id="playAllBtn"
+          ${Object.keys(recorings).length===0?'disabled style="opacity:0.4"':''}>
+          ▶ 전체 재생
+        </button>
+        <button class="btn-rec-all stop" onclick="stopAllRecordings()" id="stopAllBtn"
+          style="display:none">⏹ 정지</button>
+      </div>
+      <div class="rec-status" id="recStatus"></div>
+    </div>
+  </div>`;
+
+  // 4. 음성 인식 패널
+  html+=`
+  <div class="voice-panel">
+    <div class="voice-title">🎤 음성으로 암송하기</div>
+    <div class="mic-wrap">
+      <button class="mic-btn" id="micBtn" onclick="toggleMic()">🎤</button>
+      <div class="mic-status" id="micStatus">버튼을 누르고 말씀을 읽어보세요</div>
+    </div>
+    <div class="recog-box" id="recogBox">인식된 내용이 여기에 표시돼요</div>
+    <div class="score-wrap">
+      <div class="score-top">
+        <span class="score-label">정확도</span>
+        <span class="score-num" id="scoreNum">-</span>
+      </div>
+      <div class="score-track"><div class="score-fill" id="scoreFill"></div></div>
+    </div>
+    <div class="action-row">
+      <button class="btn-check" onclick="checkAnswer()">✓ 채점</button>
+      <button class="btn-reveal" onclick="revealAll()">💡 정답 보기</button>
+    </div>
+    <div class="result-msg" id="resultMsg"></div>
+  </div>`;
+
+  area.innerHTML=html;
+}
+
+function setStage(s){stage=s;render();}
+
+// ── 탭 전환 ──
+function switchTab(tab){
+  listenTab=tab;
+  document.getElementById('ttsTab').style.display=tab==='tts'?'block':'none';
+  document.getElementById('recTab').style.display=tab==='rec'?'block':'none';
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>{
+    b.classList.toggle('on',(i===0&&tab==='tts')||(i===1&&tab==='rec'));
+  });
+}
+
+// ── 녹음 기능 ──
+async function toggleRecordVerse(num){
+  if(recordingVerseNum!==null){
+    // 현재 녹음 중이면 정지
+    stopRecording();
+    return;
+  }
+  // 마이크 권한 요청
+  let stream;
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({audio:true});
+  }catch(e){
+    alert('마이크 권한이 필요해요.\n설정에서 마이크를 허용해주세요.');
+    return;
+  }
+  recordingVerseNum=num;
+  recChunks=[];
+  mediaRecorder=new MediaRecorder(stream);
+  mediaRecorder.ondataavailable=e=>{ if(e.data.size>0) recChunks.push(e.data); };
+  mediaRecorder.onstop=()=>{
+    const blob=new Blob(recChunks,{type:'audio/webm'});
+    recorings[recordingVerseNum]=blob;
+    stream.getTracks().forEach(t=>t.stop());
+    recordingVerseNum=null;
+    render(); // 녹음 완료 후 UI 갱신
+  };
+  mediaRecorder.start();
+
+  // 버튼 UI 변경
+  const btn=document.getElementById('recBtn_'+num);
+  if(btn){btn.textContent='⏹ 정지';btn.classList.add('recording');btn.classList.remove('record');btn.classList.add('stop');}
+  const st=document.getElementById('recStatus');
+  if(st) st.textContent=`${num}절 녹음 중... 버튼을 다시 눌러 정지하세요`;
+}
+
+function stopRecording(){
+  if(mediaRecorder&&mediaRecorder.state!=='inactive') mediaRecorder.stop();
+  const st=document.getElementById('recStatus');
+  if(st) st.textContent='녹음 완료!';
+}
+
+function playRecording(num){
+  if(!recorings[num]) return;
+  stopAllRecordings();
+  const url=URL.createObjectURL(recorings[num]);
+  if(recAudioEl){ recAudioEl.pause(); recAudioEl=null; }
+  recAudioEl=new Audio(url);
+  recAudioEl.play();
+  const st=document.getElementById('recStatus');
+  if(st) st.textContent=`${num}절 재생 중...`;
+  recAudioEl.onended=()=>{ if(st) st.textContent=''; URL.revokeObjectURL(url); };
+}
+
+function deleteRecording(num){
+  delete recorings[num];
+  render();
+}
+
+function playAllRecordings(){
+  const nums=verses.map(v=>v.num).filter(n=>recorings[n]);
+  if(!nums.length){alert('녹음된 절이 없어요!');return;}
+  playAllActive=true;
+  playAllIdx=0;
+  document.getElementById('playAllBtn').style.display='none';
+  document.getElementById('stopAllBtn').style.display='block';
+  playNextRecording(nums);
+}
+
+function playNextRecording(nums){
+  if(!playAllActive||playAllIdx>=nums.length){
+    stopAllRecordings();
+    return;
+  }
+  const num=nums[playAllIdx];
+  const url=URL.createObjectURL(recorings[num]);
+  if(recAudioEl){ recAudioEl.pause(); }
+  recAudioEl=new Audio(url);
+  const st=document.getElementById('recStatus');
+  if(st) st.textContent=`${num}절 재생 중... (${playAllIdx+1}/${nums.length})`;
+  recAudioEl.play();
+  recAudioEl.onended=()=>{
+    URL.revokeObjectURL(url);
+    playAllIdx++;
+    setTimeout(()=>playNextRecording(nums), 400);
+  };
+}
+
+function stopAllRecordings(){
+  playAllActive=false;
+  if(recAudioEl){ recAudioEl.pause(); recAudioEl=null; }
+  const playBtn=document.getElementById('playAllBtn');
+  const stopBtn=document.getElementById('stopAllBtn');
+  if(playBtn) playBtn.style.display='block';
+  if(stopBtn) stopBtn.style.display='none';
+  const st=document.getElementById('recStatus');
+  if(st) st.textContent='';
+}
+
+// 구간반복 체크
+function toggleVerseCheck(num){
+  if(selectedVerseNums.has(num)) selectedVerseNums.delete(num);
+  else selectedVerseNums.add(num);
+  const btn=document.getElementById('vcheck_'+num);
+  if(btn) btn.classList.toggle('sel', selectedVerseNums.has(num));
+}
+function selectAllVerses(val){
+  verses.forEach(v=>{
+    if(val) selectedVerseNums.add(v.num);
+    else selectedVerseNums.delete(v.num);
+    const btn=document.getElementById('vcheck_'+v.num);
+    if(btn) btn.classList.toggle('sel',val);
+  });
+}
+
+// ── TTS ──
+function getSelectedVerses(){
+  const sel=verses.filter(v=>selectedVerseNums.has(v.num));
+  return sel.length>0 ? sel : verses; // 아무것도 선택 안 했으면 전체
+}
+
+function getClosing(){
+  const bookIdx=document.getElementById('bookSel').value;
+  const chap=document.getElementById('chapSel').value;
+  const bookName=bookIdx?BOOKS[bookIdx-1].n:'';
+  const sel=getSelectedVerses();
+  const f=sel[0]?.num, t=sel[sel.length-1]?.num;
+  return f===t
+    ? `${bookName} ${chap}장 ${f}절 말씀. 아멘.`
+    : `${bookName} ${chap}장 ${f}절에서 ${t}절 말씀. 아멘.`;
+}
+
+function togglePlay(){
+  if(ttsPlaying) stopTTS();
+  else startTTS();
+}
+
+// 절마다 utterance를 분리 → 재생바 업데이트 가능
+let ttsQueue=[], ttsQueueIdx=0, ttsCurrentRepeat=1, ttsTotalRepeat=1;
+
+function startTTS(){
+  speechSynthesis.cancel();
+  ttsPlaying=true;
+  ttsTotalRepeat=ttsRepeat?ttsRepeatN:1;
+  ttsCurrentRepeat=1;
+  buildQueue();
+  playNext();
+  const btn=document.getElementById('playBtn');
+  if(btn){btn.textContent='⏹ 정지';btn.classList.add('playing');}
+}
+
+function buildQueue(){
+  const sel=getSelectedVerses();
+  // 절 본문 + 마무리
+  ttsQueue=[...sel.map(v=>({text:v.text, label:`${v.num}절`, idx:sel.indexOf(v), total:sel.length})),
+            {text:getClosing(), label:'아멘', idx:sel.length, total:sel.length}];
+  ttsQueueIdx=0;
+}
+
+function playNext(){
+  if(!ttsPlaying) return;
+  if(ttsQueueIdx>=ttsQueue.length){
+    // 한 회 완료
+    if(ttsCurrentRepeat<ttsTotalRepeat){
+      ttsCurrentRepeat++;
+      ttsQueueIdx=0;
+      setTimeout(()=>playNext(), 800);
+    } else {
+      stopTTS();
+    }
+    return;
+  }
+
+  const item=ttsQueue[ttsQueueIdx];
+  updateProgress(item.idx, item.total, ttsCurrentRepeat, ttsTotalRepeat, item.label);
+
+  const utt=new SpeechSynthesisUtterance(item.text);
+  utt.lang='ko-KR'; utt.rate=ttsSpeed; utt.pitch=1.0;
+
+  // 가장 자연스러운 한국어 음성 선택
+  const voices=speechSynthesis.getVoices();
+  const preferred=['Yuna','Nari','여성','Female','Google 한국의','Google Korean'];
+  let koVoice=null;
+  for(const pref of preferred){
+    koVoice=voices.find(v=>v.lang.startsWith('ko')&&v.name.includes(pref));
+    if(koVoice) break;
+  }
+  if(!koVoice) koVoice=voices.find(v=>v.lang.startsWith('ko'));
+  if(koVoice) utt.voice=koVoice;
+
+  utt.onend=()=>{ ttsQueueIdx++; setTimeout(()=>playNext(), 200); };
+  utt.onerror=(e)=>{ if(e.error!=='interrupted'){ ttsQueueIdx++; playNext(); } };
+  speechSynthesis.speak(utt);
+}
+
+function updateProgress(idx, total, rep, totalRep, label){
+  const pct=total>0?Math.round((idx/total)*100):0;
+  const fill=document.getElementById('progressFill');
+  const lbl=document.getElementById('progressLabel');
+  const repEl=document.getElementById('progressRepeat');
+  if(fill) fill.style.width=pct+'%';
+  if(lbl)  lbl.textContent=label||'-';
+  if(repEl) repEl.textContent=totalRep>1?`${rep}/${totalRep}회`:'';
+}
+
+function stopTTS(){
+  ttsPlaying=false;
+  speechSynthesis.cancel();
+  ttsQueue=[];ttsQueueIdx=0;
+  const btn=document.getElementById('playBtn');
+  if(btn){btn.textContent='▶ 듣기';btn.classList.remove('playing');}
+  const fill=document.getElementById('progressFill');
+  const lbl=document.getElementById('progressLabel');
+  const repEl=document.getElementById('progressRepeat');
+  if(fill) fill.style.width='0%';
+  if(lbl)  lbl.textContent='-';
+  if(repEl) repEl.textContent='';
+}
+
+function seekTTS(e, track){
+  // 재생바 클릭 → 해당 절로 이동
+  if(!ttsPlaying||!ttsQueue.length) return;
+  const rect=track.getBoundingClientRect();
+  const ratio=(e.clientX-rect.left)/rect.width;
+  const newIdx=Math.floor(ratio*ttsQueue.length);
+  speechSynthesis.cancel();
+  ttsQueueIdx=Math.max(0,Math.min(newIdx,ttsQueue.length-1));
+  setTimeout(()=>playNext(),100);
+}
+
+function toggleRepeat(){
+  ttsRepeat=!ttsRepeat;
+  const btn=document.getElementById('repeatBtn');
+  const wrap=document.getElementById('repeatCountWrap');
+  if(btn){btn.classList.toggle('on',ttsRepeat);btn.textContent=ttsRepeat?`🔁 ${ttsRepeatN}회 반복`:'🔁 반복OFF';}
+  if(wrap){wrap.style.display=ttsRepeat?'flex':'none';}
+}
+
+// ── 음성 인식 ──
+function setupSpeech(){
+  if(!hasSpeech)return;
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  recognition=new SR();
+  recognition.lang='ko-KR';
+  recognition.continuous=true;
+  recognition.interimResults=true;
+  recognition.maxAlternatives=5;
+
+  recognition.onstart=()=>{
+    isListening=true;
+    const btn=document.getElementById('micBtn');
+    if(btn){btn.classList.add('on');btn.textContent='⏹';}
+    const st=document.getElementById('micStatus');
+    if(st){st.textContent='🔴 듣고 있어요... 말씀을 읽어주세요';st.className='mic-status on';}
+    const box=document.getElementById('recogBox');
+    if(box){box.className='recog-box active';box.innerHTML='';}
+  };
+
+  recognition.onend=()=>{
+    if(isListening){try{recognition.start();}catch(e){isListening=false;onMicOff();}return;}
+    onMicOff();
+  };
+
+  recognition.onerror=(e)=>{
+    if(e.error==='no-speech')return;
+    isListening=false; onMicOff();
+    const st=document.getElementById('micStatus');
+    if(st){
+      const msgs={'audio-capture':'마이크를 찾을 수 없어요','not-allowed':'⚠️ 마이크 권한이 필요해요','network':'네트워크 오류가 발생했어요'};
+      st.textContent=msgs[e.error]||('오류: '+e.error);
+    }
+  };
+
+  recognition.onresult=(e)=>{
+    let interim='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const res=e.results[i];
+      const best=getBest(res);
+      if(res.isFinal)finalText+=best;
+      else interim+=best;
+    }
+    interimText=interim;
+    const box=document.getElementById('recogBox');
+    if(box){
+      box.innerHTML=`<span>${finalText}</span>`+(interim?`<span class="interim"> ${interim}</span>`:'');
+      if(!finalText&&!interim)box.innerHTML='인식된 내용이 여기에 표시돼요';
+    }
+  };
+}
+
+function getBest(result){
+  let best=result[0].transcript, bestConf=result[0].confidence||0;
+  for(let i=1;i<result.length;i++){
+    const alt=result[i];
+    if((alt.confidence||0)>bestConf*1.1&&alt.transcript.length>=best.length){
+      best=alt.transcript;bestConf=alt.confidence||0;
+    }
+  }
+  return best;
+}
+
+function onMicOff(){
+  const btn=document.getElementById('micBtn');
+  if(btn){btn.classList.remove('on');btn.textContent='🎤';}
+  const st=document.getElementById('micStatus');
+  if(st){st.textContent=finalText?'인식 완료! 채점 버튼을 눌러보세요 ✓':'버튼을 누르고 말씀을 읽어주세요';st.className='mic-status';}
+  const box=document.getElementById('recogBox');
+  if(box)box.className='recog-box';
+}
+
+function toggleMic(){
+  if(!hasSpeech){alert('Chrome 또는 Safari에서 음성 인식이 가능해요');return;}
+  if(isListening){
+    isListening=false;try{recognition.stop();}catch(e){}
+  } else {
+    finalText='';interimText='';
+    const fill=document.getElementById('scoreFill');
+    const num=document.getElementById('scoreNum');
+    const msg=document.getElementById('resultMsg');
+    if(fill)fill.style.width='0%';
+    if(num)num.textContent='-';
+    if(msg){msg.className='result-msg';msg.textContent='';}
+    isListening=true;try{recognition.start();}catch(e){isListening=false;onMicOff();}
+  }
+}
+
+function stopMic(){
+  isListening=false;if(recognition){try{recognition.stop();}catch(e){}}
+}
+
+// ── 채점 ──
+function normalize(s){return s.replace(/[.,!?~·…""''「」『』()\[\]《》]/g,'').replace(/\s+/g,' ').trim();}
+
+function lcs(a,b){
+  const m=a.length,n=b.length;
+  let prev=new Array(n+1).fill(0),curr;
+  for(let i=1;i<=m;i++){
+    curr=new Array(n+1).fill(0);
+    for(let j=1;j<=n;j++)curr[j]=a[i-1]===b[j-1]?prev[j-1]+1:Math.max(curr[j-1],prev[j]);
+    prev=curr;
+  }
+  return prev[n];
+}
+
+function calcScore(answer,spoken){
+  const a=normalize(answer), b=normalize(spoken);
+  if(!b)return 0;
+  const charScore=lcs(a,b)/Math.max(a.length,1);
+  const wa=a.split(' ').filter(Boolean), wb=b.split(' ').filter(Boolean);
+  const used=new Set(); let matched=0;
+  wa.forEach(w=>{for(let i=0;i<wb.length;i++){if(!used.has(i)&&wb[i]===w){matched++;used.add(i);break;}}});
+  const wordScore=matched/Math.max(wa.length,1);
+  return Math.round((charScore*0.5+wordScore*0.5)*100);
+}
+
+function checkAnswer(){
+  const spoken=(finalText+' '+interimText).trim();
+  if(!spoken){alert('먼저 마이크 버튼을 눌러 말씀을 읽어주세요 🎤');return;}
+  if(!verses.length)return;
+  const allText=verses.map(v=>v.text).join(' ');
+  const score=calcScore(allText,spoken);
+  const fill=document.getElementById('scoreFill');
+  const num=document.getElementById('scoreNum');
+  const msg=document.getElementById('resultMsg');
+  if(fill)fill.style.width=score+'%';
+  if(num)num.textContent=score+'%';
+  if(score>=90){msg.className='result-msg pass';msg.textContent='🎉 완벽해요! 말씀을 잘 외우셨어요!';}
+  else if(score>=70){msg.className='result-msg info';msg.textContent='👍 거의 다 맞았어요! 조금 더 연습해봐요';}
+  else if(score>=40){msg.className='result-msg info';msg.textContent='📖 다시 한번 읽고 도전해봐요';}
+  else{msg.className='result-msg fail';msg.textContent='🙏 말씀을 더 읽고 암송해봐요';}
+  document.querySelectorAll('.w.hide').forEach(el=>{
+    const ch=el.dataset.ch||'';
+    el.classList.add(spoken.includes(ch)?'ok':'bad');
+    el.textContent=ch;
+  });
+}
+
+function revealAll(){
+  document.querySelectorAll('.w.hide').forEach(el=>{
+    el.textContent=el.dataset.ch||'';el.classList.add('ok');
+  });
+  if(stage===4){
+    document.querySelectorAll('.verse-body').forEach((body,i)=>{
+      if(verses[i])body.innerHTML=`<span style="color:#15803d">${verses[i].text}</span>`;
+    });
+  }
+  const msg=document.getElementById('resultMsg');
+  if(msg){msg.className='result-msg info';msg.textContent='💡 정답을 확인하세요';}
+}
+</script>
+</body>
+</html>
