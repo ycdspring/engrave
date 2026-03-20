@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>성경 암송 트레이너</title>
+<title>Engrave the Word</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&family=Noto+Serif+KR:wght@400;700&display=swap');
 
@@ -342,10 +342,17 @@ async function loadVerses(){
     const vObj=data.verses;
     let allVerses=[];
     if(Array.isArray(vObj)){
-      // 배열이면 인덱스+1이 절 번호
-      allVerses=vObj.map((v,i)=>({num:i+1, text:(v.text||v.verse_text||'').trim()}));
+      // 배열이면 각 객체의 verse 필드 사용, 없으면 인덱스+1
+      allVerses=vObj.map((v,i)=>({
+        num: parseInt(v.verse||v.verse_nr||v.number||i+1),
+        text:(v.text||v.verse_text||'').trim()
+      }));
     } else {
-      allVerses=Object.keys(vObj).map(k=>({num:parseInt(k),text:(vObj[k].text||'').trim()}));
+      // 객체이면 각 값의 verse 필드 사용, 없으면 키값
+      allVerses=Object.keys(vObj).map(k=>({
+        num: parseInt(vObj[k].verse||vObj[k].verse_nr||k),
+        text:(vObj[k].text||'').trim()
+      }));
     }
     allVerses.sort((a,b)=>a.num-b.num);
     const end=t||Math.max(...allVerses.map(v=>v.num));
@@ -676,9 +683,9 @@ function playNextRecording(nums, totalRepeat){
   }
   const num=nums[playAllIdx];
   if(recAudioEl){recAudioEl.pause();recAudioEl.src='';recAudioEl=null;}
-  const blob=recorings[num];
-  if(!blob){playAllIdx++;setTimeout(()=>playNextRecording(nums,totalRepeat),100);return;}
-  const url=URL.createObjectURL(blob);
+  const rec=recorings[num];
+  if(!rec){playAllIdx++;setTimeout(()=>playNextRecording(nums,totalRepeat),100);return;}
+  const url=URL.createObjectURL(rec.blob);
   recAudioEl=new Audio();
   recAudioEl.src=url;
   // 재생바 업데이트
