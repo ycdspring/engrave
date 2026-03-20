@@ -487,8 +487,8 @@ function render(){
       </div>
 
       <!-- 반복 횟수 -->
-      <div class="tts-row" style="margin-bottom:10px;">
-        <span class="tts-label">반복</span>
+      <div class="tts-row" style="margin-bottom:10px;display:${recRepeat?'flex':'none'}" id="recRepeatCountWrap">
+        <span class="tts-label">횟수</span>
         <input type="range" min="1" max="10" step="1" value="${recRepeatN}" id="recRepeatCount"
           oninput="recRepeatN=+this.value;document.getElementById('recRepeatVal').textContent=this.value+'회';document.getElementById('recRepeatBtn').textContent='🔁 '+this.value+'회 반복'">
         <span class="tts-val" id="recRepeatVal">${recRepeatN}회</span>
@@ -638,13 +638,15 @@ function toggleRecVerseCheck(num){
 }
 
 function playAllRecordings(){
-  // 구간선택 + 녹음된 절만
   const nums=verses.map(v=>v.num).filter(n=>selectedRecVerseNums.has(n)&&recorings[n]);
   if(!nums.length){alert('선택된 구간에 녹음된 절이 없어요!');return;}
+  // 슬라이더 최신값 반영
+  const slider=document.getElementById('recRepeatCount');
+  if(slider) recRepeatN=+slider.value;
+  const total=recRepeat ? recRepeatN : 1;
   playAllActive=true;
   playAllIdx=0;
   playAllRepeatCur=1;
-  const total=recRepeat?recRepeatN:1;
   const pb=document.getElementById('playAllBtn');
   const sb=document.getElementById('stopAllBtn');
   if(pb)pb.style.display='none';
@@ -667,7 +669,8 @@ function playNextRecording(nums, totalRepeat){
   }
   const num=nums[playAllIdx];
   if(recAudioEl){recAudioEl.pause();recAudioEl.src='';recAudioEl=null;}
-  const {blob}=recorings[num];
+  const blob=recorings[num];
+  if(!blob){playAllIdx++;setTimeout(()=>playNextRecording(nums,totalRepeat),100);return;}
   const url=URL.createObjectURL(blob);
   recAudioEl=new Audio();
   recAudioEl.src=url;
@@ -910,13 +913,16 @@ function getBest(result){
   return best;
 }
 
+// 암송해보기 마이크 녹음용
+let micRecorder=null, micRecChunks=[], micRecBlob=null;
+
 function onMicOff(){
   const btn=document.getElementById('micBtn');
   if(btn){btn.classList.remove('on');btn.textContent='🎤';}
   const st=document.getElementById('micStatus');
   if(st){
-    if(finalText){
-      st.innerHTML='암송 완료! <button onclick="toggleMic()" style="margin-left:8px;padding:5px 12px;border-radius:99px;border:none;background:#5755ff;color:white;font-size:0.75rem;font-weight:700;cursor:pointer;">다시 한번 들어보실래요?</button>';
+    if(micRecBlob){
+      st.innerHTML='암송 완료! <button onclick="playMyAmsung()" style="margin-left:8px;padding:6px 14px;border-radius:99px;border:none;background:#5755ff;color:white;font-size:0.75rem;font-weight:700;cursor:pointer;">🔊 내가 외운 암송 들어볼까요?</button>';
     } else {
       st.textContent='버튼을 누르고 말씀을 읽어보세요';
     }
@@ -926,19 +932,39 @@ function onMicOff(){
   if(box)box.className='recog-box';
 }
 
+function playMyAmsung(){
+  if(!micRecBlob){alert('녹음된 암송이 없어요!');return;}
+  const url=URL.createObjectURL(micRecBlob);
+  const audio=new Audio(url);
+  audio.play();
+  audio.onended=()=>URL.revokeObjectURL(url);
+}
+
 function toggleMic(){
   if(!hasSpeech){alert('Chrome 또는 Safari에서 음성 인식이 가능해요');return;}
   if(isListening){
-    isListening=false;try{recognition.stop();}catch(e){}
+    // 정지
+    isListening=false;
+    try{recognition.stop();}catch(e){}
+    // 마이크 녹음도 정지
+    if(micRecorder&&micRecorder.state!=='inactive') micRecorder.stop();
   } else {
-    finalText='';interimText='';
-    const fill=document.getElementById('scoreFill');
-    const num=document.getElementById('scoreNum');
-    const msg=document.getElementById('resultMsg');
-    if(fill)fill.style.width='0%';
-    if(num)num.textContent='-';
-    if(msg){msg.className='result-msg';msg.textContent='';}
-    isListening=true;try{recognition.start();}catch(e){isListening=false;onMicOff();}
+    finalText='';interimText='';micRecBlob=null;micRecChunks=[];
+    isListening=true;
+    // 음성인식 시작
+    try{recognition.start();}catch(e){isListening=false;onMicOff();return;}
+    // 마이크 녹음도 동시 시작
+    navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
+      const mime=getSupportedMimeType();
+      micRecorder=new MediaRecorder(stream, mime?{mimeType:mime}:{});
+      micRecChunks=[];
+      micRecorder.ondataavailable=e=>{if(e.data.size>0)micRecChunks.push(e.data);};
+      micRecorder.onstop=()=>{
+        micRecBlob=new Blob(micRecChunks,{type:mime||'audio/webm'});
+        stream.getTracks().forEach(t=>t.stop());
+      };
+      micRecorder.start();
+    }).catch(()=>{});
   }
 }
 
