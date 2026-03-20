@@ -300,10 +300,11 @@ let verses=[], stage=0;
 let finalText='', interimText='';
 let ttsSpeed=0.9, ttsRepeat=false, ttsPlaying=false, ttsRepeatN=3;
 let selectedVerseNums=new Set();
-let listenTab='tts'; // 'tts' | 'rec'
-let recorings={}; // {verseNum: Blob}
+let recRepeat=false, recRepeatN=3, selectedRecVerseNums=new Set();
+let listenTab='tts';
+let recorings={};
 let mediaRecorder=null, recChunks=[], recordingVerseNum=null;
-let recAudioEl=null, playAllIdx=0, playAllActive=false;
+let recAudioEl=null, playAllIdx=0, playAllActive=false, playAllRepeatCur=1;
 let recognition=null, isListening=false;
 const hasSpeech='webkitSpeechRecognition' in window||'SpeechRecognition' in window;
 
@@ -342,7 +343,8 @@ async function loadVerses(){
     const keys=Object.keys(vObj).map(Number).sort((a,b)=>a-b);
     const end=t||Math.max(...keys);
     verses=keys.filter(n=>n>=f&&n<=end).map(n=>({num:n,text:vObj[n].text.trim()}));
-    selectedVerseNums=new Set(verses.map(v=>v.num)); // 기본 전체 선택
+    selectedVerseNums=new Set(verses.map(v=>v.num));
+    selectedRecVerseNums=new Set(verses.map(v=>v.num));
     stage=0; stopTTS();
     render();
   }catch(e){alert('불러오기 실패. 인터넷 연결을 확인해주세요.');}
@@ -401,6 +403,10 @@ function render(){
   // 3. 듣기 패널 (TTS / 내 목소리 탭)
   const checkBoxes = verses.map(v=>
     `<button class="verse-check-btn sel" id="vcheck_${v.num}" onclick="toggleVerseCheck(${v.num})">${v.num}절</button>`
+  ).join('');
+
+  const recCheckBoxes = verses.map(v=>
+    `<button class="verse-check-btn sel" id="rvcheck_${v.num}" onclick="toggleRecVerseCheck(${v.num})">${v.num}절</button>`
   ).join('');
 
   const recVerseRows = verses.map(v=>{
@@ -463,11 +469,35 @@ function render(){
 
     <!-- 내 목소리 탭 -->
     <div id="recTab" style="display:${listenTab==='rec'?'block':'none'}">
-      <div style="font-size:0.75rem;color:#6b6b99;margin-bottom:8px;line-height:1.6;">
-        절별로 내 목소리를 녹음하고 재생할 수 있어요.<br>
-        녹음 후 <b>전체 재생</b>으로 이어서 들을 수 있어요.
+      <!-- 재생바 -->
+      <div class="play-progress-wrap">
+        <div class="play-progress-track">
+          <div class="play-progress-fill" id="recProgressFill"></div>
+        </div>
+        <div class="play-progress-info">
+          <span id="recProgressLabel">-</span>
+          <span id="recProgressRepeat"></span>
+        </div>
       </div>
+
+      <!-- 구간 선택 -->
+      <div style="margin-bottom:10px;">
+        <div style="font-size:0.7rem;font-weight:700;color:#6b6b99;margin-bottom:6px;">🔂 구간 선택</div>
+        <div class="section-checkboxes">${recCheckBoxes}</div>
+      </div>
+
+      <!-- 반복 횟수 -->
+      <div class="tts-row" style="margin-bottom:10px;">
+        <span class="tts-label">반복</span>
+        <input type="range" min="1" max="10" step="1" value="${recRepeatN}" id="recRepeatCount"
+          oninput="recRepeatN=+this.value;document.getElementById('recRepeatVal').textContent=this.value+'회';document.getElementById('recRepeatBtn').textContent='🔁 '+this.value+'회 반복'">
+        <span class="tts-val" id="recRepeatVal">${recRepeatN}회</span>
+      </div>
+
+      <!-- 절별 녹음 목록 -->
       <div class="rec-verse-list">${recVerseRows}</div>
+
+      <!-- 전체재생 / 반복 버튼 -->
       <div class="rec-all-row">
         <button class="btn-rec-all play" onclick="playAllRecordings()" id="playAllBtn"
           ${Object.keys(recorings).length===0?'disabled style="opacity:0.4"':''}>
@@ -475,6 +505,10 @@ function render(){
         </button>
         <button class="btn-rec-all stop" onclick="stopAllRecordings()" id="stopAllBtn"
           style="display:none">⏹ 정지</button>
+        <button class="btn-repeat ${recRepeat?'on':''}" id="recRepeatBtn" onclick="toggleRecRepeat()"
+          style="flex:1;padding:12px;border-radius:10px;font-size:0.82rem;">
+          🔁 ${recRepeat?`${recRepeatN}회 반복`:'반복OFF'}
+        </button>
       </div>
       <div class="rec-status" id="recStatus"></div>
     </div>
@@ -590,35 +624,70 @@ function deleteRecording(num){
   }
 }
 
+function toggleRecRepeat(){
+  recRepeat=!recRepeat;
+  const btn=document.getElementById('recRepeatBtn');
+  if(btn){btn.classList.toggle('on',recRepeat);btn.textContent=recRepeat?`🔁 ${recRepeatN}회 반복`:'🔁 반복OFF';}
+}
+
+function toggleRecVerseCheck(num){
+  if(selectedRecVerseNums.has(num)) selectedRecVerseNums.delete(num);
+  else selectedRecVerseNums.add(num);
+  const btn=document.getElementById('rvcheck_'+num);
+  if(btn) btn.classList.toggle('sel', selectedRecVerseNums.has(num));
+}
+
 function playAllRecordings(){
-  const nums=verses.map(v=>v.num).filter(n=>recorings[n]);
-  if(!nums.length){alert('녹음된 절이 없어요!');return;}
+  // 구간선택 + 녹음된 절만
+  const nums=verses.map(v=>v.num).filter(n=>selectedRecVerseNums.has(n)&&recorings[n]);
+  if(!nums.length){alert('선택된 구간에 녹음된 절이 없어요!');return;}
   playAllActive=true;
   playAllIdx=0;
+  playAllRepeatCur=1;
+  const total=recRepeat?recRepeatN:1;
   const pb=document.getElementById('playAllBtn');
   const sb=document.getElementById('stopAllBtn');
   if(pb)pb.style.display='none';
   if(sb)sb.style.display='block';
-  playNextRecording(nums);
+  playNextRecording(nums, total);
 }
 
-function playNextRecording(nums){
-  if(!playAllActive||playAllIdx>=nums.length){stopAllRecordings();return;}
+function playNextRecording(nums, totalRepeat){
+  if(!playAllActive){stopAllRecordings();return;}
+  if(playAllIdx>=nums.length){
+    // 한 회 완료
+    if(playAllRepeatCur<totalRepeat){
+      playAllRepeatCur++;
+      playAllIdx=0;
+      setTimeout(()=>playNextRecording(nums,totalRepeat),700);
+    } else {
+      stopAllRecordings();
+    }
+    return;
+  }
   const num=nums[playAllIdx];
   if(recAudioEl){recAudioEl.pause();recAudioEl.src='';recAudioEl=null;}
   const {blob}=recorings[num];
   const url=URL.createObjectURL(blob);
   recAudioEl=new Audio();
   recAudioEl.src=url;
+  // 재생바 업데이트
+  const pct=Math.round((playAllIdx/nums.length)*100);
+  const fill=document.getElementById('recProgressFill');
+  const lbl=document.getElementById('recProgressLabel');
+  const rep=document.getElementById('recProgressRepeat');
+  if(fill)fill.style.width=pct+'%';
+  if(lbl)lbl.textContent=`${num}절`;
+  if(rep)rep.textContent=totalRepeat>1?`${playAllRepeatCur}/${totalRepeat}회`:'';
   const st=document.getElementById('recStatus');
   if(st)st.textContent=`${num}절 재생 중... (${playAllIdx+1}/${nums.length})`;
   const p=recAudioEl.play();
-  if(p!==undefined) p.catch(()=>stopAllRecordings());
+  if(p!==undefined)p.catch(()=>stopAllRecordings());
   recAudioEl.onended=()=>{
     URL.revokeObjectURL(url);
     recAudioEl=null;
     playAllIdx++;
-    setTimeout(()=>playNextRecording(nums),500);
+    setTimeout(()=>playNextRecording(nums,totalRepeat),500);
   };
 }
 
@@ -629,6 +698,12 @@ function stopAllRecordings(){
   const sb=document.getElementById('stopAllBtn');
   if(pb)pb.style.display='block';
   if(sb)sb.style.display='none';
+  const fill=document.getElementById('recProgressFill');
+  const lbl=document.getElementById('recProgressLabel');
+  const rep=document.getElementById('recProgressRepeat');
+  if(fill)fill.style.width='0%';
+  if(lbl)lbl.textContent='-';
+  if(rep)rep.textContent='';
   const st=document.getElementById('recStatus');
   if(st)st.textContent='';
 }
@@ -839,7 +914,14 @@ function onMicOff(){
   const btn=document.getElementById('micBtn');
   if(btn){btn.classList.remove('on');btn.textContent='🎤';}
   const st=document.getElementById('micStatus');
-  if(st){st.textContent=finalText?'인식 완료! 채점 버튼을 눌러보세요 ✓':'버튼을 누르고 말씀을 읽어주세요';st.className='mic-status';}
+  if(st){
+    if(finalText){
+      st.innerHTML='암송 완료! <button onclick="toggleMic()" style="margin-left:8px;padding:5px 12px;border-radius:99px;border:none;background:#5755ff;color:white;font-size:0.75rem;font-weight:700;cursor:pointer;">다시 한번 들어보실래요?</button>';
+    } else {
+      st.textContent='버튼을 누르고 말씀을 읽어보세요';
+    }
+    st.className='mic-status';
+  }
   const box=document.getElementById('recogBox');
   if(box)box.className='recog-box';
 }
