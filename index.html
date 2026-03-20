@@ -340,9 +340,16 @@ async function loadVerses(){
     const res=await fetch(`https://api.getbible.net/v2/korean/${b}/${c}.json`);
     const data=await res.json();
     const vObj=data.verses;
-    const keys=Object.keys(vObj).map(Number).sort((a,b)=>a-b);
-    const end=t||Math.max(...keys);
-    verses=keys.filter(n=>n>=f&&n<=end).map(n=>({num:n,text:vObj[n].text.trim()}));
+    let allVerses=[];
+    if(Array.isArray(vObj)){
+      // 배열이면 인덱스+1이 절 번호
+      allVerses=vObj.map((v,i)=>({num:i+1, text:(v.text||v.verse_text||'').trim()}));
+    } else {
+      allVerses=Object.keys(vObj).map(k=>({num:parseInt(k),text:(vObj[k].text||'').trim()}));
+    }
+    allVerses.sort((a,b)=>a.num-b.num);
+    const end=t||Math.max(...allVerses.map(v=>v.num));
+    verses=allVerses.filter(v=>v.num>=f&&v.num<=end);
     selectedVerseNums=new Set(verses.map(v=>v.num));
     selectedRecVerseNums=new Set(verses.map(v=>v.num));
     stage=0; stopTTS();
