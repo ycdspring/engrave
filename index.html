@@ -422,8 +422,8 @@ function render(){
   <div class="tts-panel">
     <!-- 탭 -->
     <div class="tab-row">
-      <button class="tab-btn ${listenTab==='tts'?'on':''}" onclick="switchTab('tts')">🔊 TTS 듣기</button>
-      <button class="tab-btn ${listenTab==='rec'?'on':''}" onclick="switchTab('rec')">🎙 내 목소리</button>
+      <button class="tab-btn ${listenTab==='tts'?'on':''}" onclick="switchTab('tts')">🔊 자동 읽기</button>
+      <button class="tab-btn ${listenTab==='rec'?'on':''}" onclick="switchTab('rec')">🎙 내 목소리로 읽기</button>
     </div>
 
     <!-- TTS 탭 -->
@@ -480,27 +480,15 @@ function render(){
     </div>
   </div>`;
 
-  // 4. 음성 인식 패널
+  // 4. 암송해보기 패널
   html+=`
   <div class="voice-panel">
-    <div class="voice-title">🎤 음성으로 암송하기</div>
+    <div class="voice-title">🎤 암송해보기</div>
     <div class="mic-wrap">
       <button class="mic-btn" id="micBtn" onclick="toggleMic()">🎤</button>
       <div class="mic-status" id="micStatus">버튼을 누르고 말씀을 읽어보세요</div>
     </div>
     <div class="recog-box" id="recogBox">인식된 내용이 여기에 표시돼요</div>
-    <div class="score-wrap">
-      <div class="score-top">
-        <span class="score-label">정확도</span>
-        <span class="score-num" id="scoreNum">-</span>
-      </div>
-      <div class="score-track"><div class="score-fill" id="scoreFill"></div></div>
-    </div>
-    <div class="action-row">
-      <button class="btn-check" onclick="checkAnswer()">✓ 채점</button>
-      <button class="btn-reveal" onclick="revealAll()">💡 정답 보기</button>
-    </div>
-    <div class="result-msg" id="resultMsg"></div>
   </div>`;
 
   area.innerHTML=html;
@@ -519,61 +507,87 @@ function switchTab(tab){
 }
 
 // ── 녹음 기능 ──
+function getSupportedMimeType(){
+  const types=['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg'];
+  for(const t of types){
+    try{ if(MediaRecorder.isTypeSupported(t)) return t; }catch(e){}
+  }
+  return '';
+}
+
 async function toggleRecordVerse(num){
-  if(recordingVerseNum!==null){
-    // 현재 녹음 중이면 정지
-    stopRecording();
+  if(recordingVerseNum!==null){ stopRecording(); return; }
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    alert('이 브라우저는 녹음을 지원하지 않아요.\nSafari 또는 Chrome을 사용해주세요.');
     return;
   }
-  // 마이크 권한 요청
   let stream;
   try{
-    stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    stream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
   }catch(e){
-    alert('마이크 권한이 필요해요.\n설정에서 마이크를 허용해주세요.');
+    if(e.name==='NotAllowedError'||e.name==='PermissionDeniedError'){
+      alert('마이크 권한이 필요해요.\n\niPhone: 설정 → Safari → 마이크 → 허용\nAndroid: 브라우저 설정 → 사이트 권한 → 마이크');
+    } else {
+      alert('마이크 오류: '+e.message);
+    }
     return;
   }
   recordingVerseNum=num;
   recChunks=[];
-  mediaRecorder=new MediaRecorder(stream);
-  mediaRecorder.ondataavailable=e=>{ if(e.data.size>0) recChunks.push(e.data); };
+  const mimeType=getSupportedMimeType();
+  try{
+    mediaRecorder=mimeType?new MediaRecorder(stream,{mimeType}):new MediaRecorder(stream);
+  }catch(e){
+    mediaRecorder=new MediaRecorder(stream);
+  }
+  mediaRecorder.ondataavailable=e=>{ if(e.data&&e.data.size>0) recChunks.push(e.data); };
   mediaRecorder.onstop=()=>{
-    const blob=new Blob(recChunks,{type:'audio/webm'});
-    recorings[recordingVerseNum]=blob;
+    const type=mediaRecorder.mimeType||mimeType||'audio/mp4';
+    const blob=new Blob(recChunks,{type});
+    recorings[recordingVerseNum]={blob,type};
     stream.getTracks().forEach(t=>t.stop());
     recordingVerseNum=null;
-    render(); // 녹음 완료 후 UI 갱신
+    render();
   };
-  mediaRecorder.start();
-
-  // 버튼 UI 변경
+  mediaRecorder.start(100); // iOS는 timeslice 필수!
   const btn=document.getElementById('recBtn_'+num);
-  if(btn){btn.textContent='⏹ 정지';btn.classList.add('recording');btn.classList.remove('record');btn.classList.add('stop');}
+  if(btn){btn.textContent='⏹ 정지';btn.classList.remove('record');btn.classList.add('stop','recording');}
   const st=document.getElementById('recStatus');
-  if(st) st.textContent=`${num}절 녹음 중... 버튼을 다시 눌러 정지하세요`;
+  if(st) st.textContent=`${num}절 녹음 중 🔴 버튼을 다시 눌러 정지`;
 }
 
 function stopRecording(){
   if(mediaRecorder&&mediaRecorder.state!=='inactive') mediaRecorder.stop();
   const st=document.getElementById('recStatus');
-  if(st) st.textContent='녹음 완료!';
+  if(st) st.textContent='녹음 완료! ✓';
 }
 
 function playRecording(num){
   if(!recorings[num]) return;
   stopAllRecordings();
-  const url=URL.createObjectURL(recorings[num]);
-  if(recAudioEl){ recAudioEl.pause(); recAudioEl=null; }
-  recAudioEl=new Audio(url);
-  recAudioEl.play();
+  if(recAudioEl){recAudioEl.pause();recAudioEl.src='';recAudioEl=null;}
+  const {blob}=recorings[num];
+  const url=URL.createObjectURL(blob);
+  recAudioEl=new Audio();
+  recAudioEl.src=url;
   const st=document.getElementById('recStatus');
-  if(st) st.textContent=`${num}절 재생 중...`;
-  recAudioEl.onended=()=>{ if(st) st.textContent=''; URL.revokeObjectURL(url); };
+  const p=recAudioEl.play();
+  if(p!==undefined){
+    p.then(()=>{if(st)st.textContent=`${num}절 재생 중...`;})
+     .catch(e=>{ if(st)st.textContent='재생 실패. 다시 눌러주세요.'; console.error(e); });
+  }
+  recAudioEl.onended=()=>{
+    if(st)st.textContent='';
+    URL.revokeObjectURL(url);
+    recAudioEl=null;
+  };
 }
 
 function deleteRecording(num){
-  delete recorings[num];
-  render();
+  if(confirm(`${num}절 녹음을 삭제할까요?`)){
+    delete recorings[num];
+    render();
+  }
 }
 
 function playAllRecordings(){
@@ -581,39 +595,42 @@ function playAllRecordings(){
   if(!nums.length){alert('녹음된 절이 없어요!');return;}
   playAllActive=true;
   playAllIdx=0;
-  document.getElementById('playAllBtn').style.display='none';
-  document.getElementById('stopAllBtn').style.display='block';
+  const pb=document.getElementById('playAllBtn');
+  const sb=document.getElementById('stopAllBtn');
+  if(pb)pb.style.display='none';
+  if(sb)sb.style.display='block';
   playNextRecording(nums);
 }
 
 function playNextRecording(nums){
-  if(!playAllActive||playAllIdx>=nums.length){
-    stopAllRecordings();
-    return;
-  }
+  if(!playAllActive||playAllIdx>=nums.length){stopAllRecordings();return;}
   const num=nums[playAllIdx];
-  const url=URL.createObjectURL(recorings[num]);
-  if(recAudioEl){ recAudioEl.pause(); }
-  recAudioEl=new Audio(url);
+  if(recAudioEl){recAudioEl.pause();recAudioEl.src='';recAudioEl=null;}
+  const {blob}=recorings[num];
+  const url=URL.createObjectURL(blob);
+  recAudioEl=new Audio();
+  recAudioEl.src=url;
   const st=document.getElementById('recStatus');
-  if(st) st.textContent=`${num}절 재생 중... (${playAllIdx+1}/${nums.length})`;
-  recAudioEl.play();
+  if(st)st.textContent=`${num}절 재생 중... (${playAllIdx+1}/${nums.length})`;
+  const p=recAudioEl.play();
+  if(p!==undefined) p.catch(()=>stopAllRecordings());
   recAudioEl.onended=()=>{
     URL.revokeObjectURL(url);
+    recAudioEl=null;
     playAllIdx++;
-    setTimeout(()=>playNextRecording(nums), 400);
+    setTimeout(()=>playNextRecording(nums),500);
   };
 }
 
 function stopAllRecordings(){
   playAllActive=false;
-  if(recAudioEl){ recAudioEl.pause(); recAudioEl=null; }
-  const playBtn=document.getElementById('playAllBtn');
-  const stopBtn=document.getElementById('stopAllBtn');
-  if(playBtn) playBtn.style.display='block';
-  if(stopBtn) stopBtn.style.display='none';
+  if(recAudioEl){recAudioEl.pause();recAudioEl.src='';recAudioEl=null;}
+  const pb=document.getElementById('playAllBtn');
+  const sb=document.getElementById('stopAllBtn');
+  if(pb)pb.style.display='block';
+  if(sb)sb.style.display='none';
   const st=document.getElementById('recStatus');
-  if(st) st.textContent='';
+  if(st)st.textContent='';
 }
 
 // 구간반복 체크
