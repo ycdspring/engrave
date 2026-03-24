@@ -61,7 +61,7 @@ select, input[type=number] {
   background:white; border-radius:16px; padding:18px 16px;
   box-shadow:0 4px 20px rgba(0,0,0,0.07); border:1.5px solid var(--stroke);
   margin-bottom:10px;
-  max-height:280px; overflow-y:auto;
+  max-height:560px; overflow-y:auto;
 }
 .verse-card::-webkit-scrollbar { width:4px; }
 .verse-card::-webkit-scrollbar-thumb { background:#ddddf5; border-radius:99px; }
@@ -456,10 +456,6 @@ function render(){
           <span id="progressRepeat"></span>
         </div>
       </div>
-      <div style="margin-bottom:10px;">
-        <div style="font-size:0.7rem;font-weight:700;color:#6b6b99;margin-bottom:6px;">🔂 구간 선택</div>
-        <div class="section-checkboxes">${checkBoxes}</div>
-      </div>
       <div class="tts-row" style="margin-bottom:10px;">
         <span class="tts-label">속도</span>
         <input type="range" min="0.5" max="1.5" step="0.1" value="${ttsSpeed}"
@@ -478,6 +474,10 @@ function render(){
           oninput="ttsRepeatN=+this.value;document.getElementById('repeatVal').textContent=this.value+'회';document.getElementById('repeatBtn').textContent='🔁 '+this.value+'회 반복'">
         <span class="tts-val" id="repeatVal">${ttsRepeatN}회</span>
       </div>
+      <div style="margin-top:10px;">
+        <div style="font-size:0.7rem;font-weight:700;color:#6b6b99;margin-bottom:6px;">🔂 구간 선택</div>
+        <div class="section-checkboxes">${checkBoxes}</div>
+      </div>
     </div>
 
     <!-- 내 목소리 탭 -->
@@ -491,12 +491,6 @@ function render(){
           <span id="recProgressLabel">-</span>
           <span id="recProgressRepeat"></span>
         </div>
-      </div>
-
-      <!-- 구간 선택 -->
-      <div style="margin-bottom:10px;">
-        <div style="font-size:0.7rem;font-weight:700;color:#6b6b99;margin-bottom:6px;">🔂 구간 선택</div>
-        <div class="section-checkboxes">${recCheckBoxes}</div>
       </div>
 
       <!-- 반복 횟수 -->
@@ -524,6 +518,10 @@ function render(){
         </button>
       </div>
       <div class="rec-status" id="recStatus"></div>
+      <div style="margin-top:10px;">
+        <div style="font-size:0.7rem;font-weight:700;color:#6b6b99;margin-bottom:6px;">🔂 구간 선택</div>
+        <div class="section-checkboxes">${recCheckBoxes}</div>
+      </div>
     </div>
   </div>`;
 
