@@ -301,7 +301,7 @@ let finalText='', interimText='';
 let ttsSpeed=0.9, ttsRepeat=false, ttsPlaying=false, ttsRepeatN=3;
 let selectedVerseNums=new Set();
 let recRepeat=false, recRepeatN=3, selectedRecVerseNums=new Set();
-let listenTab='tts';
+let listenTab='rec';
 let recorings={};
 let mediaRecorder=null, recChunks=[], recordingVerseNum=null;
 let recAudioEl=null, playAllIdx=0, playAllActive=false, playAllRepeatCur=1;
@@ -330,30 +330,21 @@ function onChap(){
 }
 
 async function loadVerses(){
-  const b=document.getElementById('bookSel').value;
-  const c=document.getElementById('chapSel').value;
+  const b=parseInt(document.getElementById('bookSel').value);
+  const c=parseInt(document.getElementById('chapSel').value);
   const f=parseInt(document.getElementById('vFrom').value)||1;
   const t=parseInt(document.getElementById('vTo').value);
   const btn=document.getElementById('loadBtn');
   btn.textContent='불러오는 중...';btn.disabled=true;
   try{
-    const res=await fetch(`https://api.getbible.net/v2/korean/${b}/${c}.json`);
+    // bolls.life API: 개역한글(KJVK), CORS 허용, Safari 호환
+    const res=await fetch(`https://bolls.life/get-chapter/KJVK/${b}/${c}/`);
+    if(!res.ok) throw new Error('HTTP '+res.status);
     const data=await res.json();
-    const vObj=data.verses;
-    let allVerses=[];
-    if(Array.isArray(vObj)){
-      // 배열이면 각 객체의 verse 필드 사용, 없으면 인덱스+1
-      allVerses=vObj.map((v,i)=>({
-        num: parseInt(v.verse||v.verse_nr||v.number||i+1),
-        text:(v.text||v.verse_text||'').trim()
-      }));
-    } else {
-      // 객체이면 각 값의 verse 필드 사용, 없으면 키값
-      allVerses=Object.keys(vObj).map(k=>({
-        num: parseInt(vObj[k].verse||vObj[k].verse_nr||k),
-        text:(vObj[k].text||'').trim()
-      }));
-    }
+    let allVerses=data.map(v=>({
+      num: parseInt(v.verse),
+      text: v.text.replace(/<[^>]+>/g,'').trim()
+    }));
     allVerses.sort((a,b)=>a.num-b.num);
     const end=t||Math.max(...allVerses.map(v=>v.num));
     verses=allVerses.filter(v=>v.num>=f&&v.num<=end);
@@ -361,7 +352,10 @@ async function loadVerses(){
     selectedRecVerseNums=new Set(verses.map(v=>v.num));
     stage=0; stopTTS();
     render();
-  }catch(e){alert('불러오기 실패. 인터넷 연결을 확인해주세요.');}
+  }catch(e){
+    console.error(e);
+    alert('불러오기 실패. 인터넷 연결을 확인해주세요.\n('+e.message+')');
+  }
   btn.textContent='말씀 불러오기';btn.disabled=false;
 }
 
@@ -386,6 +380,11 @@ function makeVerseHTML(v, s){
 }
 
 function render(){
+  // 스크롤 위치 저장
+  const recList = document.querySelector('.rec-verse-list');
+  const savedRecScroll = recList ? recList.scrollTop : 0;
+  const savedWindowScroll = window.scrollY;
+
   stopMic(); stopTTS();
   finalText=''; interimText='';
   const area=document.getElementById('mainArea');
@@ -442,8 +441,8 @@ function render(){
   <div class="tts-panel">
     <!-- 탭 -->
     <div class="tab-row">
-      <button class="tab-btn ${listenTab==='tts'?'on':''}" onclick="switchTab('tts')">🔊 자동 읽기</button>
       <button class="tab-btn ${listenTab==='rec'?'on':''}" onclick="switchTab('rec')">🎙 내 목소리로 읽기</button>
+      <button class="tab-btn ${listenTab==='tts'?'on':''}" onclick="switchTab('tts')">🔊 자동 읽기</button>
     </div>
 
     <!-- TTS 탭 -->
@@ -540,6 +539,11 @@ function render(){
   </div>`;
 
   area.innerHTML=html;
+
+  // 스크롤 위치 복원
+  window.scrollTo(0, savedWindowScroll);
+  const newRecList = document.querySelector('.rec-verse-list');
+  if(newRecList && savedRecScroll > 0) newRecList.scrollTop = savedRecScroll;
 }
 
 function setStage(s){stage=s;render();}
@@ -550,7 +554,7 @@ function switchTab(tab){
   document.getElementById('ttsTab').style.display=tab==='tts'?'block':'none';
   document.getElementById('recTab').style.display=tab==='rec'?'block':'none';
   document.querySelectorAll('.tab-btn').forEach((b,i)=>{
-    b.classList.toggle('on',(i===0&&tab==='tts')||(i===1&&tab==='rec'));
+    b.classList.toggle('on',(i===0&&tab==='rec')||(i===1&&tab==='tts'));
   });
 }
 
