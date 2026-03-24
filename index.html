@@ -337,8 +337,8 @@ async function loadVerses(){
   const btn=document.getElementById('loadBtn');
   btn.textContent='불러오는 중...';btn.disabled=true;
   try{
-    // bolls.life API: 개역한글(KJVK), CORS 허용, Safari 호환
-    const res=await fetch(`https://bolls.life/get-chapter/KJVK/${b}/${c}/`);
+    // bolls.life API: 개역한글(KRV), CORS 허용, Safari 호환
+    const res=await fetch(`https://bolls.life/get-text/KRV/${b}/${c}/`);
     if(!res.ok) throw new Error('HTTP '+res.status);
     const data=await res.json();
     let allVerses=data.map(v=>({
