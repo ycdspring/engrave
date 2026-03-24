@@ -773,6 +773,7 @@ function togglePlay(){
 let ttsQueue=[], ttsQueueIdx=0, ttsCurrentRepeat=1, ttsTotalRepeat=1;
 
 function startTTS(){
+  if(typeof speechSynthesis==='undefined'){alert('이 브라우저는 자동읽기(TTS)를 지원하지 않아요.\nChrome 또는 Safari를 사용해주세요.');return;}
   speechSynthesis.cancel();
   ttsPlaying=true;
   ttsTotalRepeat=ttsRepeat?ttsRepeatN:1;
@@ -812,7 +813,7 @@ function playNext(){
   utt.lang='ko-KR'; utt.rate=ttsSpeed; utt.pitch=1.0;
 
   // 가장 자연스러운 한국어 음성 선택
-  const voices=speechSynthesis.getVoices();
+  const voices=(typeof speechSynthesis!=="undefined")?speechSynthesis.getVoices():[];
   const preferred=['Yuna','Nari','여성','Female','Google 한국의','Google Korean'];
   let koVoice=null;
   for(const pref of preferred){
@@ -824,7 +825,7 @@ function playNext(){
 
   utt.onend=()=>{ ttsQueueIdx++; setTimeout(()=>playNext(), 200); };
   utt.onerror=(e)=>{ if(e.error!=='interrupted'){ ttsQueueIdx++; playNext(); } };
-  speechSynthesis.speak(utt);
+  if(typeof speechSynthesis!=="undefined") speechSynthesis.speak(utt);
 }
 
 function updateProgress(idx, total, rep, totalRep, label){
@@ -839,7 +840,7 @@ function updateProgress(idx, total, rep, totalRep, label){
 
 function stopTTS(){
   ttsPlaying=false;
-  speechSynthesis.cancel();
+  if(typeof speechSynthesis!=='undefined') speechSynthesis.cancel();
   ttsQueue=[];ttsQueueIdx=0;
   const btn=document.getElementById('playBtn');
   if(btn){btn.textContent='▶ 듣기';btn.classList.remove('playing');}
@@ -857,7 +858,7 @@ function seekTTS(e, track){
   const rect=track.getBoundingClientRect();
   const ratio=(e.clientX-rect.left)/rect.width;
   const newIdx=Math.floor(ratio*ttsQueue.length);
-  speechSynthesis.cancel();
+  if(typeof speechSynthesis!=="undefined") speechSynthesis.cancel();
   ttsQueueIdx=Math.max(0,Math.min(newIdx,ttsQueue.length-1));
   setTimeout(()=>playNext(),100);
 }
