@@ -61,7 +61,7 @@ select, input[type=number] {
   background:white; border-radius:16px; padding:18px 16px;
   box-shadow:0 4px 20px rgba(0,0,0,0.07); border:1.5px solid var(--stroke);
   margin-bottom:10px;
-  max-height:560px; overflow-y:auto;
+  max-height:448px; overflow-y:auto;
 }
 .verse-card::-webkit-scrollbar { width:4px; }
 .verse-card::-webkit-scrollbar-thumb { background:#ddddf5; border-radius:99px; }
@@ -73,7 +73,7 @@ select, input[type=number] {
 }
 .verse-body {
   font-family:'Noto Serif KR',serif; font-size:1.05rem; color:#1a1a3e;
-  line-height:2.2; word-break:keep-all;
+  line-height:1.6; word-break:keep-all;
 }
 .w { display:inline; }
 .w.hide {
@@ -381,6 +381,8 @@ function makeVerseHTML(v, s){
 
 function render(){
   // 스크롤 위치 저장
+  const verseCard = document.querySelector('.verse-card');
+  const savedVerseScroll = verseCard ? verseCard.scrollTop : 0;
   const recList = document.querySelector('.rec-verse-list');
   const savedRecScroll = recList ? recList.scrollTop : 0;
   const savedWindowScroll = window.scrollY;
@@ -540,6 +542,8 @@ function render(){
 
   // 스크롤 위치 복원
   window.scrollTo(0, savedWindowScroll);
+  const newVerseCard = document.querySelector('.verse-card');
+  if(newVerseCard && savedVerseScroll > 0) newVerseCard.scrollTop = savedVerseScroll;
   const newRecList = document.querySelector('.rec-verse-list');
   if(newRecList && savedRecScroll > 0) newRecList.scrollTop = savedRecScroll;
 }
